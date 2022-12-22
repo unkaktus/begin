@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -11,6 +12,22 @@ import (
 
 	"github.com/BurntSushi/toml"
 )
+
+const (
+	BatchPBS   = "pbs"
+	BatchSlurm = "slurm"
+	BatchBare  = "bare"
+)
+
+func DetectBatchSystem() string {
+	if _, err := exec.LookPath("qsub"); err == nil {
+		return BatchPBS
+	}
+	if _, err := exec.LookPath("squeue"); err == nil {
+		return BatchSlurm
+	}
+	return BatchBare
+}
 
 func formatDuration(d time.Duration) string {
 	d = d.Round(time.Second)
@@ -74,7 +91,6 @@ func (config Config) PBS() string {
 }
 
 func run() error {
-	batchSystem := flag.String("b", "", "Batch system to use [pbs slurm]")
 	flag.Parse()
 
 	if len(flag.Args()) == 0 {
@@ -89,13 +105,11 @@ func run() error {
 		return fmt.Errorf("decode file: %w", err)
 	}
 
-	switch *batchSystem {
-	case "pbs":
+	switch DetectBatchSystem() {
+	case BatchPBS:
 		fmt.Printf("%s\n", config.PBS())
-	case "slurm":
-		return fmt.Errorf("not implemented yet")
 	default:
-		return fmt.Errorf("batch system is not specified")
+		return fmt.Errorf("batch system is not supported")
 	}
 
 	return nil
