@@ -70,7 +70,7 @@ func (config Config) PBS() string {
 #PBS -M ` + config.Email + `
 #PBS -l select=` + strconv.Itoa(config.NumberOfNodes) +
 		`:node_type=` + config.NodeType +
-		`:mpiprocs=` + strconv.Itoa(NumberOfMPIRanks) +
+		`:mpiprocs=` + strconv.Itoa(config.NumberOfMPIRanksPerNode) +
 		`:ompthreads=` + strconv.Itoa(config.NumberOfOMPThreadsPerProcess) + `
 #PBS -l walltime=` + formatDuration(config.Walltime) + `
 `)
