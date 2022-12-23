@@ -52,7 +52,10 @@ type Config struct {
 	LoadModules []string
 
 	WorkingDirectory string
-	EntryPoint       string
+
+	PreScript  []string
+	EntryPoint string
+	PostScript []string
 }
 
 func (config Config) PBS() string {
@@ -73,9 +76,18 @@ func (config Config) PBS() string {
 		`:mpiprocs=` + strconv.Itoa(config.NumberOfMPIRanksPerNode) +
 		`:ompthreads=` + strconv.Itoa(config.NumberOfOMPThreadsPerProcess) + `
 #PBS -l walltime=` + formatDuration(config.Walltime) + `
+
 `)
 	for _, module := range config.LoadModules {
 		builder.WriteString(fmt.Sprintf("module load %s\n", module))
+	}
+
+	if config.WorkingDirectory != "" {
+		builder.WriteString("cd " + config.WorkingDirectory + "\n")
+	}
+
+	for _, cmd := range config.PreScript {
+		builder.WriteString(cmd + "\n")
 	}
 
 	builder.WriteString("time mpirun" +
@@ -86,6 +98,10 @@ func (config Config) PBS() string {
 		" --map-by l3cache" +
 		" --bind-to l3cache" +
 		" " + config.EntryPoint)
+
+	for _, cmd := range config.PostScript {
+		builder.WriteString(cmd + "\n")
+	}
 
 	return builder.String()
 }
