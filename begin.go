@@ -83,13 +83,13 @@ func (config Config) PBS() string {
 	}
 	builder.WriteString("\n")
 
-	if config.WorkingDirectory != "" {
-		builder.WriteString("cd " + config.WorkingDirectory + "\n")
+	for _, cmd := range config.PreScript {
+		builder.WriteString(cmd + "\n")
 	}
 	builder.WriteString("\n")
 
-	for _, cmd := range config.PreScript {
-		builder.WriteString(cmd + "\n")
+	if config.WorkingDirectory != "" {
+		builder.WriteString("cd " + config.WorkingDirectory + "\n")
 	}
 	builder.WriteString("\n")
 
