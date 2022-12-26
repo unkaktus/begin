@@ -81,23 +81,27 @@ func (config Config) PBS() string {
 	for _, module := range config.LoadModules {
 		builder.WriteString(fmt.Sprintf("module load %s\n", module))
 	}
+	builder.WriteString("\n")
 
 	if config.WorkingDirectory != "" {
 		builder.WriteString("cd " + config.WorkingDirectory + "\n")
 	}
+	builder.WriteString("\n")
 
 	for _, cmd := range config.PreScript {
 		builder.WriteString(cmd + "\n")
 	}
+	builder.WriteString("\n")
 
 	builder.WriteString("time mpirun" +
 		" -x OMP_DISPLAY_ENV=TRUE" +
 		" -x OMP_NUM_THREADS=" + strconv.Itoa(config.NumberOfOMPThreadsPerProcess) +
 		" -x OMP_PLACES=cores" +
 		" -n " + strconv.Itoa(NumberOfMPIRanks) +
-		" --map-by l3cache" +
-		" --bind-to l3cache" +
-		" " + config.EntryPoint)
+		" --map-by node:PE=" + strconv.Itoa(config.NumberOfOMPThreadsPerProcess) +
+		" --bind-to core" +
+		" " + config.EntryPoint + "\n")
+	builder.WriteString("\n")
 
 	for _, cmd := range config.PostScript {
 		builder.WriteString(cmd + "\n")
