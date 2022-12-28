@@ -68,16 +68,18 @@ type PBSConfig struct {
 	Config
 	NumberOfMPIRanks int
 	WalltimeString   string
+	JobLogDirectory  string
 	OutputFile       string
 	ErrorFile        string
 }
 
 func NewPBSConfig(c Config) PBSConfig {
 	cc := PBSConfig{
-		Config:         c,
-		WalltimeString: formatDuration(c.Walltime),
-		OutputFile:     path.Join(c.LogDirectory, c.Name+".out"),
-		ErrorFile:      path.Join(c.LogDirectory, c.Name+".err"),
+		Config:          c,
+		WalltimeString:  formatDuration(c.Walltime),
+		JobLogDirectory: path.Join(c.LogDirectory, c.Name),
+		OutputFile:      path.Join(c.LogDirectory, c.Name+"/"+c.Name+".out"),
+		ErrorFile:       path.Join(c.LogDirectory, c.Name+"/"+c.Name+".err"),
 	}
 	return cc
 }
