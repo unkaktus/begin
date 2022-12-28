@@ -51,7 +51,8 @@ type Config struct {
 	LogDirectory                 string
 	PrintOMPEnvironment          bool
 
-	LoadModules []string
+	ModulesPreScript []string
+	LoadModules      []string
 
 	WorkingDirectory string
 
@@ -66,33 +67,26 @@ type Config struct {
 
 type ExtendedConfig struct {
 	Config
-	NumberOfMPIRanks int
-	WalltimeString   string
-	JobLogDirectory  string
-	OutputFile       string
-	ErrorFile        string
+	NumberOfMPIRanks     int
+	NumberOfTasksPerNode int
+	WalltimeString       string
+	JobLogDirectory      string
+	OutputFile           string
+	ErrorFile            string
 }
 
 func NewExtendedConfig(c Config) ExtendedConfig {
 	cc := ExtendedConfig{
-		Config:          c,
-		WalltimeString:  formatDuration(c.Walltime),
-		JobLogDirectory: path.Join(c.LogDirectory, c.Name),
-		OutputFile:      path.Join(c.LogDirectory, c.Name+"/"+c.Name+".out"),
-		ErrorFile:       path.Join(c.LogDirectory, c.Name+"/"+c.Name+".err"),
+		Config:               c,
+		NumberOfTasksPerNode: 1,
+		NumberOfMPIRanks:     c.NumberOfNodes * c.NumberOfMPIRanksPerNode,
+		WalltimeString:       formatDuration(c.Walltime),
+		JobLogDirectory:      path.Join(c.LogDirectory, c.Name),
+		OutputFile:           path.Join(c.LogDirectory, c.Name+"/"+c.Name+".out"),
+		ErrorFile:            path.Join(c.LogDirectory, c.Name+"/"+c.Name+".err"),
 	}
-	return cc
-}
-
-type MPIRunConfig struct {
-	Config
-	NumberOfMPIRanks int
-}
-
-func NewMPIRunConfig(c Config) MPIRunConfig {
-	cc := MPIRunConfig{
-		Config:           c,
-		NumberOfMPIRanks: c.NumberOfNodes * c.NumberOfMPIRanksPerNode,
+	if c.NumberOfMPIRanksPerNode == 0 {
+		cc.NumberOfTasksPerNode = 1
 	}
 	return cc
 }
@@ -145,7 +139,7 @@ func (config Config) writeSlurmHeader(builder *strings.Builder) error {
 #SBATCH --mail-type=FAIL/BEGIN/END
 #SBATCH --mail-user={{.Email}}
 #SBATCH --nodes {{.NumberOfNodes}}
-#SBATCH --ntasks-per-node {{.NumberOfMPIRanksPerNode}}
+#SBATCH --ntasks-per-node {{.NumberOfTasksPerNode}}
 #SBATCH --time={{.WalltimeString}}
 `,
 		NewExtendedConfig(config),
@@ -174,6 +168,11 @@ func (config Config) JobData(batchSystem string) (string, error) {
 		}
 	}
 
+	for _, cmd := range config.ModulesPreScript {
+		builder.WriteString(cmd + "\n")
+	}
+	builder.WriteString("\n")
+
 	for _, module := range config.LoadModules {
 		builder.WriteString(fmt.Sprintf("module load %s\n", module))
 	}
@@ -198,7 +197,7 @@ func (config Config) JobData(batchSystem string) (string, error) {
 			" -n {{.NumberOfMPIRanks}}"+
 			" --map-by node:PE={{.NumberOfOMPThreadsPerProcess}}"+
 			" --bind-to core",
-			NewMPIRunConfig(config),
+			NewExtendedConfig(config),
 		)
 		if err != nil {
 			return "", fmt.Errorf("create mpirun string: %w", err)
