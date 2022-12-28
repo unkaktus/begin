@@ -150,22 +150,25 @@ func (config Config) PBS() (string, error) {
 	}
 	builder.WriteString("\n")
 
-	mpirunString, err := ExecTemplate("time mpirun"+
-		" -x OMP_NUM_THREADS={{.NumberOfOMPThreadsPerProcess}}"+
-		" -x OMP_PLACES=cores"+
-		" -n {{.NumberOfMPIRanks}}"+
-		" --map-by node:PE={{.NumberOfOMPThreadsPerProcess}}"+
-		" --bind-to core",
-		NewMPIRunConfig(config),
-	)
-	if err != nil {
-		return "", fmt.Errorf("create mpirun string: %w", err)
+	task := []string{}
+
+	if config.NumberOfMPIRanksPerNode > 0 {
+		mpirunString, err := ExecTemplate("time mpirun"+
+			" -x OMP_NUM_THREADS={{.NumberOfOMPThreadsPerProcess}}"+
+			" -x OMP_PLACES=cores"+
+			" -n {{.NumberOfMPIRanks}}"+
+			" --map-by node:PE={{.NumberOfOMPThreadsPerProcess}}"+
+			" --bind-to core",
+			NewMPIRunConfig(config),
+		)
+		if err != nil {
+			return "", fmt.Errorf("create mpirun string: %w", err)
+		}
+		if mpirunString != "" {
+			task = append(task, mpirunString)
+		}
 	}
 
-	task := []string{}
-	if mpirunString != "" {
-		task = append(task, mpirunString)
-	}
 	if len(config.RunTime) > 0 {
 		task = append(task, strings.Join(config.RunTime, " "))
 	}
