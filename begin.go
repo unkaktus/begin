@@ -64,7 +64,7 @@ type Config struct {
 	PostScript []string
 }
 
-type PBSConfig struct {
+type ExtendedConfig struct {
 	Config
 	NumberOfMPIRanks int
 	WalltimeString   string
@@ -73,8 +73,8 @@ type PBSConfig struct {
 	ErrorFile        string
 }
 
-func NewPBSConfig(c Config) PBSConfig {
-	cc := PBSConfig{
+func NewExtendedConfig(c Config) ExtendedConfig {
+	cc := ExtendedConfig{
 		Config:          c,
 		WalltimeString:  formatDuration(c.Walltime),
 		JobLogDirectory: path.Join(c.LogDirectory, c.Name),
@@ -112,9 +112,7 @@ func ExecTemplate(ts string, s interface{}) (string, error) {
 	return builder.String(), nil
 }
 
-func (config Config) PBS() (string, error) {
-	builder := &strings.Builder{}
-
+func (config Config) writePBSHeader(builder *strings.Builder) error {
 	pbsString, err := ExecTemplate(`#!/bin/bash -l
 #PBS -N {{.Name}}
 #PBS -e {{.ErrorFile}}
@@ -127,15 +125,54 @@ func (config Config) PBS() (string, error) {
 		`:ompthreads={{.NumberOfOMPThreadsPerProcess}}`+`
 #PBS -l walltime={{.WalltimeString}}
 `,
-		NewPBSConfig(config),
+		NewExtendedConfig(config),
 	)
 	if err != nil {
-		return "", fmt.Errorf("create mpirun string: %w", err)
+		return fmt.Errorf("create mpirun string: %w", err)
 	}
 
 	builder.WriteString(pbsString)
-
 	builder.WriteString("\n")
+
+	return nil
+}
+
+func (config Config) writeSlurmHeader(builder *strings.Builder) error {
+	pbsString, err := ExecTemplate(`#!/bin/bash -l
+#SBATCH -J {{.Name}}
+#SBATCH -o {{.OutputFile}}
+#SBATCH -e {{.ErrorFile}}
+#SBATCH --mail-type=FAIL/BEGIN/END
+#SBATCH --mail-user={{.Email}}
+#SBATCH --nodes {{.NumberOfNodes}}
+#SBATCH --ntasks-per-node {{.NumberOfMPIRanksPerNode}}
+#SBATCH --time={{.WalltimeString}}
+`,
+		NewExtendedConfig(config),
+	)
+	if err != nil {
+		return fmt.Errorf("create mpirun string: %w", err)
+	}
+
+	builder.WriteString(pbsString)
+	builder.WriteString("\n")
+
+	return nil
+}
+
+func (config Config) JobData(batchSystem string) (string, error) {
+	builder := &strings.Builder{}
+
+	switch batchSystem {
+	case BatchPBS:
+		if err := config.writePBSHeader(builder); err != nil {
+			return "", fmt.Errorf("write PBS header: %w", err)
+		}
+	case BatchSlurm:
+		if err := config.writeSlurmHeader(builder); err != nil {
+			return "", fmt.Errorf("write Slurm header: %w", err)
+		}
+	}
 
 	for _, module := range config.LoadModules {
 		builder.WriteString(fmt.Sprintf("module load %s\n", module))
@@ -211,16 +248,11 @@ func run() error {
 		*batchSystem = DetectBatchSystem()
 	}
 
-	switch *batchSystem {
-	case BatchPBS:
-		jobData, err := config.PBS()
-		if err != nil {
-			return fmt.Errorf("getting PBS job data: %w", err)
-		}
-		fmt.Printf("%s\n", jobData)
-	default:
-		return fmt.Errorf("batch system is not supported")
+	jobData, err := config.JobData(*batchSystem)
+	if err != nil {
+		return fmt.Errorf("getting job data: %w", err)
 	}
+	fmt.Printf("%s\n", jobData)
 
 	return nil
 }
