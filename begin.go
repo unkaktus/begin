@@ -6,7 +6,6 @@ import (
 	"log"
 	"os/exec"
 	"path"
-	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -63,6 +62,24 @@ type Config struct {
 	PostScript []string
 }
 
+type PBSConfig struct {
+	Config
+	NumberOfMPIRanks int
+	WalltimeString   string
+	OutputFile       string
+	ErrorFile        string
+}
+
+func NewPBSConfig(c Config) PBSConfig {
+	cc := PBSConfig{
+		Config:         c,
+		WalltimeString: formatDuration(c.Walltime),
+		OutputFile:     path.Join(c.LogDirectory, c.Name+".out"),
+		ErrorFile:      path.Join(c.LogDirectory, c.Name+".err"),
+	}
+	return cc
+}
+
 type MPIRunConfig struct {
 	Config
 	NumberOfMPIRanks int
@@ -94,22 +111,28 @@ func ExecTemplate(ts string, s interface{}) (string, error) {
 func (config Config) PBS() (string, error) {
 	builder := &strings.Builder{}
 
-	OutputFile := path.Join(config.LogDirectory, config.Name+".out")
-	ErrorFile := path.Join(config.LogDirectory, config.Name+".err")
-
-	builder.WriteString(`#!/bin/bash -l
-#PBS -N ` + config.Name + `
-#PBS -e ` + ErrorFile + `
-#PBS -o ` + OutputFile + `
+	pbsString, err := ExecTemplate(`#!/bin/bash -l
+#PBS -N {{.Name}}
+#PBS -e {{.ErrorFile}}
+#PBS -o {{.OutputFile}}
 #PBS -m abe
-#PBS -M ` + config.Email + `
-#PBS -l select=` + strconv.Itoa(config.NumberOfNodes) +
-		`:node_type=` + config.NodeType +
-		`:mpiprocs=` + strconv.Itoa(config.NumberOfMPIRanksPerNode) +
-		`:ompthreads=` + strconv.Itoa(config.NumberOfOMPThreadsPerProcess) + `
-#PBS -l walltime=` + formatDuration(config.Walltime) + `
+#PBS -M {{.Email}}
+#PBS -l select={{.NumberOfNodes}}`+
+		`:node_type={{.NodeType}}`+
+		`:mpiprocs={{.NumberOfMPIRanksPerNode}}`+
+		`:ompthreads={{.NumberOfOMPThreadsPerProcess}}`+`
+#PBS -l walltime={{.WalltimeString}}
+`,
+		NewPBSConfig(config),
+	)
+	if err != nil {
+		return "", fmt.Errorf("create mpirun string: %w", err)
+	}
 
-`)
+	builder.WriteString(pbsString)
+
+	builder.WriteString("\n")
+
 	for _, module := range config.LoadModules {
 		builder.WriteString(fmt.Sprintf("module load %s\n", module))
 	}
