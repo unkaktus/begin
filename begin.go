@@ -136,7 +136,7 @@ func (config Config) writeSlurmHeader(builder *strings.Builder) error {
 #SBATCH -J {{.Name}}
 #SBATCH -o {{.OutputFile}}
 #SBATCH -e {{.ErrorFile}}
-#SBATCH --mail-type=FAIL/BEGIN/END
+#SBATCH --mail-type=ALL
 #SBATCH --mail-user={{.Email}}
 #SBATCH --nodes {{.NumberOfNodes}}
 #SBATCH --ntasks-per-node {{.NumberOfTasksPerNode}}
