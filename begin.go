@@ -48,13 +48,16 @@ type Config struct {
 	Walltime                     time.Duration
 	Email                        string
 	LogDirectory                 string
+	PrintOMPEnvironment          bool
 
 	LoadModules []string
 
 	WorkingDirectory string
 
-	PreScript  []string
+	PreScript []string
+
 	EntryPoint string
+
 	PostScript []string
 }
 
@@ -94,7 +97,7 @@ func (config Config) PBS() string {
 	builder.WriteString("\n")
 
 	builder.WriteString("time mpirun" +
-		" -x OMP_DISPLAY_ENV=TRUE" +
+		" -x OMP_DISPLAY_ENV=" + strings.ToUpper(strconv.FormatBool(config.PrintOMPEnvironment)) +
 		" -x OMP_NUM_THREADS=" + strconv.Itoa(config.NumberOfOMPThreadsPerProcess) +
 		" -x OMP_PLACES=cores" +
 		" -n " + strconv.Itoa(NumberOfMPIRanks) +
