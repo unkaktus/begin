@@ -57,7 +57,9 @@ type Config struct {
 
 	PreScript []string
 
-	EntryPoint string
+	RunTime    []string
+	Executable string
+	Arguments  []string
 
 	PostScript []string
 }
@@ -160,7 +162,21 @@ func (config Config) PBS() (string, error) {
 		return "", fmt.Errorf("create mpirun string: %w", err)
 	}
 
-	builder.WriteString(mpirunString + " " + config.EntryPoint + "\n")
+	task := []string{}
+	if mpirunString != "" {
+		task = append(task, mpirunString)
+	}
+	if len(config.RunTime) > 0 {
+		task = append(task, strings.Join(config.RunTime, " "))
+	}
+
+	task = append(task, config.Executable)
+
+	if len(config.Arguments) > 0 {
+		task = append(task, strings.Join(config.Arguments, " "))
+	}
+
+	builder.WriteString(strings.Join(task, " "))
 	builder.WriteString("\n")
 
 	for _, cmd := range config.PostScript {
