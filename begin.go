@@ -8,15 +8,17 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/BurntSushi/toml"
 )
 
 const (
-	BatchPBS   = "pbs"
-	BatchSlurm = "slurm"
-	BatchBare  = "bare"
+	BatchPBS        = "pbs"
+	BatchSlurm      = "slurm"
+	BatchBare       = "bare"
+	BatchAutodetect = "autodetect"
 )
 
 func DetectBatchSystem() string {
@@ -61,9 +63,36 @@ type Config struct {
 	PostScript []string
 }
 
-func (config Config) PBS() string {
+type MPIRunConfig struct {
+	Config
+	NumberOfMPIRanks int
+}
+
+func NewMPIRunConfig(c Config) MPIRunConfig {
+	cc := MPIRunConfig{
+		Config:           c,
+		NumberOfMPIRanks: c.NumberOfNodes * c.NumberOfMPIRanksPerNode,
+	}
+	return cc
+}
+
+func ExecTemplate(ts string, s interface{}) (string, error) {
+	t, err := template.New("template").Parse(ts)
+	if err != nil {
+		return "", fmt.Errorf("parse template: %w", err)
+
+	}
 	builder := &strings.Builder{}
-	NumberOfMPIRanks := config.NumberOfNodes * config.NumberOfMPIRanksPerNode
+
+	err = t.Execute(builder, s)
+	if err != nil {
+		return "", fmt.Errorf("execute template: %w", err)
+	}
+	return builder.String(), nil
+}
+
+func (config Config) PBS() (string, error) {
+	builder := &strings.Builder{}
 
 	OutputFile := path.Join(config.LogDirectory, config.Name+".out")
 	ErrorFile := path.Join(config.LogDirectory, config.Name+".err")
@@ -96,24 +125,30 @@ func (config Config) PBS() string {
 	}
 	builder.WriteString("\n")
 
-	builder.WriteString("time mpirun" +
-		" -x OMP_DISPLAY_ENV=" + strings.ToUpper(strconv.FormatBool(config.PrintOMPEnvironment)) +
-		" -x OMP_NUM_THREADS=" + strconv.Itoa(config.NumberOfOMPThreadsPerProcess) +
-		" -x OMP_PLACES=cores" +
-		" -n " + strconv.Itoa(NumberOfMPIRanks) +
-		" --map-by node:PE=" + strconv.Itoa(config.NumberOfOMPThreadsPerProcess) +
-		" --bind-to core" +
-		" " + config.EntryPoint + "\n")
+	mpirunString, err := ExecTemplate("time mpirun"+
+		" -x OMP_NUM_THREADS={{.NumberOfOMPThreadsPerProcess}}"+
+		" -x OMP_PLACES=cores"+
+		" -n {{.NumberOfMPIRanks}}"+
+		" --map-by node:PE={{.NumberOfOMPThreadsPerProcess}}"+
+		" --bind-to core",
+		NewMPIRunConfig(config),
+	)
+	if err != nil {
+		return "", fmt.Errorf("create mpirun string: %w", err)
+	}
+
+	builder.WriteString(mpirunString + " " + config.EntryPoint + "\n")
 	builder.WriteString("\n")
 
 	for _, cmd := range config.PostScript {
 		builder.WriteString(cmd + "\n")
 	}
 
-	return builder.String()
+	return builder.String(), nil
 }
 
 func run() error {
+	batchSystem := flag.String("b", BatchAutodetect, "Batch system to use [pbs, slurm], or default to autodetect")
 	flag.Parse()
 
 	if len(flag.Args()) == 0 {
@@ -128,9 +163,17 @@ func run() error {
 		return fmt.Errorf("decode file: %w", err)
 	}
 
-	switch DetectBatchSystem() {
+	if *batchSystem == BatchAutodetect {
+		*batchSystem = DetectBatchSystem()
+	}
+
+	switch *batchSystem {
 	case BatchPBS:
-		fmt.Printf("%s\n", config.PBS())
+		jobData, err := config.PBS()
+		if err != nil {
+			return fmt.Errorf("getting PBS job data: %w", err)
+		}
+		fmt.Printf("%s\n", jobData)
 	default:
 		return fmt.Errorf("batch system is not supported")
 	}
