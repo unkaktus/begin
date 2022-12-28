@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	BatchPBS        = "pbs"
-	BatchSlurm      = "slurm"
-	BatchBare       = "bare"
-	BatchAutodetect = "autodetect"
+	BatchPBS         = "pbs"
+	BatchSlurm       = "slurm"
+	BatchBare        = "bare"
+	BatchAutodetect  = "autodetect"
+	BatchUnsupported = "unsupported"
 )
 
 func DetectBatchSystem() string {
@@ -27,7 +28,10 @@ func DetectBatchSystem() string {
 	if _, err := exec.LookPath("squeue"); err == nil {
 		return BatchSlurm
 	}
-	return BatchBare
+	if _, err := exec.LookPath("bash"); err == nil {
+		return BatchBare
+	}
+	return BatchUnsupported
 }
 
 func formatDuration(d time.Duration) string {
@@ -122,7 +126,7 @@ func (config Config) writePBSHeader(builder *strings.Builder) error {
 		NewExtendedConfig(config),
 	)
 	if err != nil {
-		return fmt.Errorf("create mpirun string: %w", err)
+		return fmt.Errorf("execute template: %w", err)
 	}
 
 	builder.WriteString(pbsString)
@@ -145,7 +149,22 @@ func (config Config) writeSlurmHeader(builder *strings.Builder) error {
 		NewExtendedConfig(config),
 	)
 	if err != nil {
-		return fmt.Errorf("create mpirun string: %w", err)
+		return fmt.Errorf("execute template: %w", err)
+	}
+
+	builder.WriteString(pbsString)
+	builder.WriteString("\n")
+
+	return nil
+}
+
+func (config Config) writeBareHeader(builder *strings.Builder) error {
+	pbsString, err := ExecTemplate(`#!/bin/bash -l
+`,
+		NewExtendedConfig(config),
+	)
+	if err != nil {
+		return fmt.Errorf("execute template: %w", err)
 	}
 
 	builder.WriteString(pbsString)
@@ -165,6 +184,10 @@ func (config Config) JobData(batchSystem string) (string, error) {
 	case BatchSlurm:
 		if err := config.writeSlurmHeader(builder); err != nil {
 			return "", fmt.Errorf("write Slurm header: %w", err)
+		}
+	case BatchBare:
+		if err := config.writeBareHeader(builder); err != nil {
+			return "", fmt.Errorf("write bare header: %w", err)
 		}
 	}
 
@@ -245,6 +268,10 @@ func run() error {
 
 	if *batchSystem == BatchAutodetect {
 		*batchSystem = DetectBatchSystem()
+	}
+
+	if *batchSystem == BatchUnsupported {
+		return fmt.Errorf("unsupported platform")
 	}
 
 	jobData, err := config.JobData(*batchSystem)
