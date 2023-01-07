@@ -214,12 +214,7 @@ func (config Config) JobData(batchSystem string) (string, error) {
 	task := []string{}
 
 	if config.NumberOfMPIRanksPerNode > 0 {
-		mpirunString, err := ExecTemplate("time mpirun"+
-			" -x OMP_NUM_THREADS={{.NumberOfOMPThreadsPerProcess}}"+
-			" -x OMP_PLACES=cores"+
-			" -n {{.NumberOfMPIRanks}}"+
-			" --map-by node:PE={{.NumberOfOMPThreadsPerProcess}}"+
-			" --bind-to core",
+		mpirunString, err := ExecTemplate("time mpirun -n {{.NumberOfMPIRanks}}",
 			NewExtendedConfig(config),
 		)
 		if err != nil {
@@ -240,7 +235,14 @@ func (config Config) JobData(batchSystem string) (string, error) {
 		task = append(task, strings.Join(config.Arguments, " "))
 	}
 
-	builder.WriteString(strings.Join(task, " "))
+	rawTaskString := strings.Join(task, " ")
+
+	taskStringResult, err := ExecTemplate(rawTaskString, NewExtendedConfig(config))
+	if err != nil {
+		return "", fmt.Errorf("exec task string template: %w", err)
+	}
+
+	builder.WriteString(taskStringResult)
 	builder.WriteString("\n")
 
 	for _, cmd := range config.PostScript {
