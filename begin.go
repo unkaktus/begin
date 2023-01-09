@@ -74,7 +74,6 @@ type ExtendedConfig struct {
 	NumberOfMPIRanks     int
 	NumberOfTasksPerNode int
 	WalltimeString       string
-	JobLogDirectory      string
 	OutputFile           string
 	ErrorFile            string
 }
@@ -85,9 +84,8 @@ func NewExtendedConfig(c Config) ExtendedConfig {
 		NumberOfTasksPerNode: 1,
 		NumberOfMPIRanks:     c.NumberOfNodes * c.NumberOfMPIRanksPerNode,
 		WalltimeString:       formatDuration(c.Walltime),
-		JobLogDirectory:      path.Join(c.LogDirectory, c.Name),
-		OutputFile:           path.Join(c.LogDirectory, c.Name+"/"+c.Name+".out"),
-		ErrorFile:            path.Join(c.LogDirectory, c.Name+"/"+c.Name+".err"),
+		OutputFile:           path.Join(c.LogDirectory, c.Name+".out"),
+		ErrorFile:            path.Join(c.LogDirectory, c.Name+".err"),
 	}
 	if c.NumberOfMPIRanksPerNode == 0 {
 		cc.NumberOfTasksPerNode = 1
