@@ -252,6 +252,8 @@ func (config Config) JobData(batchSystem string) (string, error) {
 
 func run() error {
 	batchSystem := flag.String("b", BatchAutodetect, "Batch system to use [pbs, slurm], or default to autodetect")
+	nameOverride := flag.String("name", "", "Override job name")
+
 	flag.Parse()
 
 	if len(flag.Args()) == 0 {
@@ -264,6 +266,10 @@ func run() error {
 	_, err := toml.DecodeFile(filename, &config)
 	if err != nil {
 		return fmt.Errorf("decode file: %w", err)
+	}
+
+	if *nameOverride != "" {
+		config.Name = *nameOverride
 	}
 
 	if *batchSystem == BatchAutodetect {
