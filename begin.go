@@ -73,6 +73,7 @@ type ExtendedConfig struct {
 	Config
 	NumberOfMPIRanks     int
 	NumberOfTasksPerNode int
+	NumberOfTasks        int
 	WalltimeString       string
 	OutputFile           string
 	ErrorFile            string
@@ -83,6 +84,7 @@ func NewExtendedConfig(c Config) ExtendedConfig {
 		Config:               c,
 		NumberOfTasksPerNode: 1,
 		NumberOfMPIRanks:     c.NumberOfNodes * c.NumberOfMPIRanksPerNode,
+		NumberOfTasks:        c.NumberOfNodes * c.NumberOfMPIRanksPerNode,
 		WalltimeString:       formatDuration(c.Walltime),
 		OutputFile:           path.Join(c.LogDirectory, c.Name+".out"),
 		ErrorFile:            path.Join(c.LogDirectory, c.Name+".err"),
@@ -142,6 +144,7 @@ func (config Config) writeSlurmHeader(builder *strings.Builder) error {
 #SBATCH --mail-user={{.Email}}
 #SBATCH --nodes {{.NumberOfNodes}}
 #SBATCH --ntasks-per-node {{.NumberOfTasksPerNode}}
+#SBATCH --cpus-per-task {{.NumberOfOMPThreadsPerProcess}}
 #SBATCH --time={{.WalltimeString}}
 `,
 		NewExtendedConfig(config),
