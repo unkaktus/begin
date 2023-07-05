@@ -82,7 +82,7 @@ type ExtendedConfig struct {
 func NewExtendedConfig(c Config) ExtendedConfig {
 	cc := ExtendedConfig{
 		Config:               c,
-		NumberOfTasksPerNode: 1,
+		NumberOfTasksPerNode: c.NumberOfMPIRanksPerNode,
 		NumberOfMPIRanks:     c.NumberOfNodes * c.NumberOfMPIRanksPerNode,
 		NumberOfTasks:        c.NumberOfNodes * c.NumberOfMPIRanksPerNode,
 		WalltimeString:       formatDuration(c.Walltime),
